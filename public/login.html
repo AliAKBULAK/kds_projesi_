@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Giriş - Hotel KDS Enterprise</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            /* Navy Blue Dark */
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #cbd5e1;
+        }
+
+        .login-card {
+            background-color: #1e293b;
+            /* Slaty Navy */
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            width: 100%;
+            max-width: 360px;
+            text-align: center;
+            border: 1px solid #334155;
+        }
+
+        .icon-hotel {
+            font-size: 3rem;
+            margin-bottom: 20px;
+            display: inline-block;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            color: #f1f5f9;
+            margin: 0 0 5px 0;
+        }
+
+        p {
+            font-size: 0.85rem;
+            color: #64748b;
+            margin-bottom: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 0.8rem;
+            color: #94a3b8;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #334155;
+            background-color: #0f172a;
+            color: white;
+            font-size: 1rem;
+            box-sizing: border-box;
+            /* Fix width overflow */
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            /* Blue highlight */
+        }
+
+        .btn-login {
+            background: linear-gradient(135deg, #1e40af, #3b82f6);
+            color: white;
+            border: none;
+            padding: 12px;
+            width: 100%;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+            margin-top: 10px;
+        }
+
+        .btn-login:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        .error-msg {
+            color: #ef4444;
+            font-size: 0.85rem;
+            margin-top: 15px;
+            display: none;
+        }
+    </style>
+    <script>
+        const token = localStorage.getItem('kds_token');
+        if (token) {
+            window.location.href = 'index.html';
+        }
+    </script>
+</head>
+
+<body>
+
+    <div class="login-card">
+        <div class="icon-hotel">🏨</div>
+        <h1>Yönetici Girişi</h1>
+        <p>Hotel KDS Enterprise Edition</p>
+
+        <form id="login-form">
+            <div class="form-group">
+                <label>Kullanıcı Adı</label>
+                <input type="text" id="username" placeholder="admin" required>
+            </div>
+            <div class="form-group">
+                <label>Şifre</label>
+                <input type="password" id="password" placeholder="••••••" required>
+            </div>
+            <button type="submit" class="btn-login">Giriş Yap</button>
+            <div id="error-msg" class="error-msg"></div>
+        </form>
+    </div>
+
+    <script src="js/login.js"></script>
+</body>
+
+</html>

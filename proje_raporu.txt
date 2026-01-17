@@ -1,0 +1,43 @@
+# Otel Fiyatlandırma ve Karar Destek Sistemi - Proje Raporu
+
+## ÖZET
+Bu proje, otel işletmelerinin karmaşık ekonomik koşullarda (yüksek enflasyon, mevsimsel dalgalanmalar) optimal fiyatlandırma stratejileri belirlemelerine yardımcı olmak amacıyla geliştirilmiş web tabanlı bir Karar Destek Sistemidir (KDS). Sistem, yöneticilere simülasyon yapma, riskleri analiz etme ve maliyetleri anlık izleme imkanı sunarak, veri odaklı karar almayı sağlar.
+
+## GİRİŞ
+Turizm sektörü, dış etkenlere (ekonomi, mevsim, döviz kurları) son derece duyarlıdır. Geleneksel yöntemlerle yapılan bütçe planlamaları, hızla değişen parametreler karşısında yetersiz kalmaktadır. Bu proje, "Dynamic Pricing" (Dinamik Fiyatlandırma) ve "Cost-Volume-Profit" (Maliyet-Hacim-Kar) analizi prensiplerini modern web teknolojileriyle birleştirerek, otel yöneticileri için yaşayan bir finansal yönetim aracı sunmayı hedefler.
+
+## BÖLÜM 1: PROBLEMİN TANIMI, İNCELENMESİ
+Otel yöneticilerinin karşılaştığı temel problemler şunlardır:
+1.  **Dinamik Maliyetler:** Enflasyon ve döviz kurlarındaki ani değişimlerin sabit giderleri (personel, enerji) öngörülemez hale getirmesi.
+2.  **Talep Belirsizliği:** Sezonluk doluluk oranlarının (Yaz/Kış) doğru tahmin edilememesi sonucu gelir kaybı.
+3.  **Manuel Hatalar:** Excel tabanlı karmaşık hesaplamalarda yapılan insan hataları.
+4.  **Risk Yönetimi Eksikliği:** "What-if" senaryolarının (örneğin: "Döviz %20 artarsa ne olur?") hızlıca test edilememesi.
+
+Bu proje, bu problemleri otomatize edilmiş hesaplamalar ve veritabanı destekli senaryo analizleri ile çözmeyi amaçlamaktadır.
+
+## BÖLÜM 2: YÖNTEM-METOD
+Projede **Çevik Yazılım Geliştirme (Agile)** metodolojisi izlenmiştir. Sistem mimarisi aşağıda belirtilen modern teknolojiler üzerine kurulmuştur:
+
+*   **Mimari:** İstemci-Sunucu (Client-Server) mimarisi.
+*   **Backend (Sunucu Tarafı):** Node.js ve Express.js. RESTful API standartlarına uygun servisler geliştirilmiştir.
+*   **Frontend (İstemci Tarafı):** Vanilla JavaScript, HTML5 ve CSS3. Kullanıcı dostu ve hızlı bir arayüz için dış kütüphane bağımlılığı minimize edilmiştir. Grafiksel gösterimler için Chart.js kullanılmıştır.
+*   **Veritabanı:** MySQL. Veri bütünlüğünü sağlamak ve iş mantığını veritabanı seviyesinde işletmek için **Stored Procedures (Saklı Yordamlar)** ve **Triggers (Tetikleyiciler)** yoğun olarak kullanılmıştır.
+    *   *Örnek:* Bir simülasyon kaydedildiğinde `risk_check` trigger'ı devreye girerek senaryonun riskli olup olmadığını otomatik analiz eder.
+*   **Dağıtım:** Docker. Uygulama ve veritabanı konteynerize edilerek platform bağımsız çalışabilirlik sağlanmıştır.
+
+## BÖLÜM 3: BULGULAR-UYGULAMA-YAZILIMLAR
+Geliştirilen yazılım ("Otel KDS v1.0") aşağıdaki temel bulgu ve yetenekleri sunmaktadır:
+
+1.  **Gerçek Zamanlı Simülasyon Paneli:** Kullanıcılar; doluluk oranı, enflasyon beklentisi ve sezon (Yaz/Kış) parametrelerini değiştirdiğinde, sistem anlık olarak net kâr, başabaş noktası (Break-even Point) ve önerilen oda fiyatını hesaplamaktadır.
+2.  **Risk Bekçisi (Risk Watchdog):** Veritabanı seviyesinde çalışan bir tetikleyici, %15 altı kâr marjı veya %90 üzeri doluluk gerektiren riskli senaryoları tespit edip `risk_alerts` tablosuna loglamaktadır. Bu, yöneticinin tehlikeli stratejilerden kaçınmasını sağlar.
+3.  **Vardiya ve Maliyet Yönetimi:** Personel vardiyaları sisteme girildiğinde, toplam işçilik maliyeti otomatik olarak güncellenmekte ve bu maliyetin oda başına düşen payı yeniden hesaplanmaktadır (Trigger mekanizması ile).
+4.  **Görselleştirme:** Simülasyon sonuçları, ridgeline ve bar grafikleri ile görselleştirilerek, verilerin yönetici tarafından kolayca yorumlanması sağlanmıştır.
+
+## SONUÇ
+Geliştirilen Otel Fiyatlandırma ve Karar Destek Sistemi, statik bütçeleme yöntemlerine kıyasla yöneticilere çok daha esnek ve hızlı bir planlama imkanı sunmuştur. Özellikle veritabanı trigger'larının kullanımı, veri tutarlılığını artırmış ve kritik uyarı mekanizmalarını insan inisiyatifinden çıkararak otomatize etmiştir. Sistem, otel işletmelerinin karlılığını maksimize etme ve finansal riskleri minimize etme hedeflerine başarıyla hizmet etmektedir.
+
+## REFERANSLAR
+1.  Node.js Documentation - https://nodejs.org/
+2.  MySQL Reference Manual (Triggers & Stored Procedures) - https://dev.mysql.com/doc/
+3.  Chart.js User Guide - https://www.chartjs.org/
+4.  Docker Documentation - https://docs.docker.com/

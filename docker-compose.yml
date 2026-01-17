@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: hotel_kds_db
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: hotel_kds_db
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+
+  app:
+    build: .
+    container_name: hotel_kds_app
+    ports:
+      - "3000:3000"
+    environment:
+      DB_HOST: db
+      DB_USER: root
+      DB_PASSWORD: rootpassword
+      DB_NAME: hotel_kds_db
+    depends_on:
+      - db
+    # Wait for DB to be ready before starting app/setup
+    # Alternatively, run setup manually once.
+    # We will simply start the app. The user can run "docker exec hotel_kds_app npm run setup-db" manually to init DB.
+    
+volumes:
+  db_data:

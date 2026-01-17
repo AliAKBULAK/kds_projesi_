@@ -1,0 +1,481 @@
+// Simulation Logic
+
+// 3 Default Scenarios
+const scenarios = {
+    'A': { id: 'A', name: 'Kötümser', inflation: 60, raise: 60, occupancy: 50, margin: 10 },
+    'B': { id: 'B', name: 'Normal', inflation: 40, raise: 50, occupancy: 70, margin: 25 },
+    'C': { id: 'C', name: 'İyimser', inflation: 20, raise: 30, occupancy: 90, margin: 40 }
+};
+
+let currentScenarioId = 'B'; // Default
+let referenceData = null;
+let currentRates = { USD: 0, EUR: 0 }; // Store live rates
+
+// UI Elements
+const inputs = {
+    inflation: document.getElementById('sim-inflation'),
+    raise: document.getElementById('sim-raise'),
+    occupancy: document.getElementById('sim-occupancy'),
+    margin: document.getElementById('sim-margin')
+};
+
+const labels = {
+    inflation: document.getElementById('val-inflation'),
+    raise: document.getElementById('val-raise'),
+    occupancy: document.getElementById('val-occupancy'),
+    margin: document.getElementById('val-margin')
+};
+
+
+
+async function initSimulation(data2024) {
+    // 1. Fetch Live Currency Rates
+    await fetchCurrencyRates();
+
+    if (!data2024) return;
+
+    // Calculate Reference Averages from 2024 Data
+    // Calculate Reference Averages from 2024 Data
+    const totalPers = data2024.monthlyData.reduce((sum, d) => sum + parseFloat(d.personnel_expense), 0);
+    const totalKitchen = data2024.monthlyData.reduce((sum, d) => sum + parseFloat(d.kitchen_expense), 0);
+    const totalFixed = data2024.monthlyData.reduce((sum, d) => sum + parseFloat(d.fixed_expense), 0);
+    const totalOther = data2024.monthlyData.reduce((sum, d) => sum + parseFloat(d.other_expense), 0);
+
+    // Calculate Reference Weighted Occupancy
+    // (We treat each month equally for simplicity, or sum/12)
+    const avgRefOccupancy = data2024.monthlyData.reduce((sum, d) => sum + parseFloat(d.occupancy_rate), 0) / 12;
+
+    referenceData = {
+        personnel: totalPers / (currentRates.USD || 32.5),
+        kitchen: totalKitchen / (currentRates.USD || 32.5),
+        fixed: totalFixed / (currentRates.USD || 32.5),
+        other: totalOther / (currentRates.USD || 32.5),
+        occupancy: avgRefOccupancy || 70 // Fallback
+    };
+
+    // Attach Listeners
+    Object.keys(inputs).forEach(key => {
+        inputs[key].addEventListener('input', (e) => {
+            // Update Current Scenario State
+            scenarios[currentScenarioId][key] = parseInt(e.target.value);
+            // Update Label
+            labels[key].innerText = scenarios[currentScenarioId][key] + '%';
+            // Run Calc
+            runSimulation();
+        });
+    });
+
+    // NEW: Prediction Button Listener
+    const btnPredict = document.getElementById('btn-predict');
+    if (btnPredict) {
+        btnPredict.addEventListener('click', async () => {
+            const monthIdx = document.getElementById('forecast-season').value;
+
+            // UI Feedback
+            const originalText = btnPredict.innerHTML;
+            btnPredict.innerHTML = '⏳ Hesaplanıyor...';
+            btnPredict.disabled = true;
+
+            try {
+                const res = await fetch(`/api/simulation/predict/${monthIdx}`);
+                const data = await res.json();
+
+                if (data.predictedOccupancy) {
+                    // Update State
+                    scenarios[currentScenarioId].occupancy = data.predictedOccupancy;
+
+                    // Update UI
+                    inputs.occupancy.value = data.predictedOccupancy;
+                    labels.occupancy.innerText = data.predictedOccupancy + '%';
+
+                    // Trigger Simulation
+                    runSimulation();
+
+                    // alert(`🤖 AI TAHMİNİ UYGULANDI:\n\nSezon: ${data.season}\nÖnerilen Doluluk: %${data.predictedOccupancy}`);
+                }
+            } catch (err) {
+                console.error('Tahmin hatası:', err);
+                alert('Tahmin servisine ulaşılamadı.');
+            } finally {
+                btnPredict.innerHTML = originalText;
+                btnPredict.disabled = false;
+            }
+        });
+    }
+
+    // Initialize UI with Default Scenario
+    loadScenarioToUI('B');
+}
+
+function switchScenario(scenarioId) {
+    currentScenarioId = scenarioId;
+
+    // Update Tabs UI
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+        // Handle "Wizard" tab check specially or standard check
+        if (scenarioId === 'W' && btn.innerText.includes('Sihirbaz')) {
+            btn.classList.add('active');
+        } else if (btn.innerText.includes(`Senaryo ${scenarioId}`)) {
+            btn.classList.add('active');
+        }
+    });
+
+    // Toggle Panels
+    if (scenarioId === 'W') {
+        document.getElementById('standard-controls').style.display = 'none';
+        document.getElementById('wizard-controls').style.display = 'block';
+    } else {
+        document.getElementById('standard-controls').style.display = 'block';
+        document.getElementById('wizard-controls').style.display = 'none';
+        loadScenarioToUI(scenarioId);
+    }
+}
+
+function loadScenarioToUI(id) {
+    if (id === 'W') return; // Do nothing for Wizard
+
+    const s = scenarios[id];
+    // Set Slider Values
+    inputs.inflation.value = s.inflation;
+    inputs.raise.value = s.raise;
+    inputs.occupancy.value = s.occupancy;
+    inputs.margin.value = s.margin;
+
+    // Set Labels
+    labels.inflation.innerText = s.inflation + '%';
+    labels.raise.innerText = s.raise + '%';
+    labels.occupancy.innerText = s.occupancy + '%';
+    labels.margin.innerText = s.margin + '%';
+
+    runSimulation();
+}
+
+function runSimulation() {
+    if (!referenceData) return;
+
+    const s = scenarios[currentScenarioId];
+    const ref = referenceData;
+
+    // 1. Calculate Future Expenses
+    const newPersonnel = ref.personnel * (1 + s.raise / 100);
+    const inflationMultiplier = (1 + s.inflation / 100);
+
+    // Scale Variable Costs (Kitchen) by Occupancy Change
+    const occupancyMultiplier = (s.occupancy / (ref.occupancy || 70));
+    const newKitchen = ref.kitchen * inflationMultiplier * occupancyMultiplier;
+    const newFixed = ref.fixed * inflationMultiplier;
+    const newOther = ref.other * inflationMultiplier;
+
+    const totalProjectedCost = newPersonnel + newKitchen + newFixed + newOther;
+
+    // 2. Unit Cost Calculation
+    const totalRooms = 100;
+    const totalRoomNights = totalRooms * 365 * (s.occupancy / 100);
+    const unitCost = totalProjectedCost / totalRoomNights;
+
+    // 3. Suggested Price
+    const suggestedPrice = unitCost * (1 + s.margin / 100);
+    const totalIncome = suggestedPrice * totalRoomNights; // Revenue
+    const totalProfit = totalIncome - totalProjectedCost;
+
+    // Update UI
+    // Update UI
+    document.getElementById('sim-suggested-price').innerHTML = `
+        ${formatCurrency(suggestedPrice)} 
+        <span style="display:block; font-size:11px; color:#2c3e50; margin-top:4px;">
+           (Dolar Bazlı Simülasyon)
+        </span>
+    `;
+    document.getElementById('sim-unit-cost').innerText = formatCurrency(unitCost) + ' / gece';
+
+    // Update Charts
+    // 4. SENSITIVITY ANALYSIS (Duyarlılık Analizi)
+    // "What if bad things happen?" (+10% Inflation, +10% Raise, -10% Occupancy)
+
+    // Base Case Profit
+    const baseProfit = totalProfit;
+
+    // Case 1: Inflation + 10 points
+    const infBad = s.inflation + 10;
+    const multInfBad = (1 + infBad / 100);
+    const costInfBad = newPersonnel + (ref.kitchen * multInfBad) + (ref.fixed * multInfBad) + (ref.other * multInfBad);
+    const profitInfBad = totalIncome - costInfBad;
+    const impactInflation = baseProfit - profitInfBad;
+
+    // Case 2: Raise + 10 points
+    const raiseBad = s.raise + 10;
+    const costRaiseBad = (ref.personnel * (1 + raiseBad / 100)) + newKitchen + newFixed + newOther;
+    const profitRaiseBad = totalIncome - costRaiseBad;
+    const impactRaise = baseProfit - profitRaiseBad;
+
+    // Case 3: Occupancy - 10 points (Revenue Loss)
+    const occBad = s.occupancy - 10;
+    const roomsBad = totalRooms * 365 * (occBad / 100);
+    const incomeBad = suggestedPrice * roomsBad;
+    // Note: Variable costs (Kitchen) would also decrease with less occupancy, but keeping simple for impact demo
+    // Let's adjust kitchen cost for accuracy
+    const kitchenUnitCost = newKitchen / totalRoomNights; // Current unit cost
+    const kitchenBad = kitchenUnitCost * roomsBad;
+    const costOccBad = newPersonnel + kitchenBad + newFixed + newOther;
+    const profitOccBad = incomeBad - costOccBad;
+    const impactOccupancy = baseProfit - profitOccBad;
+
+    // Update Charts
+    renderSimulationCharts({
+        breakdown: {
+            personnel: newPersonnel,
+            kitchen: newKitchen,
+            fixed: newFixed,
+            other: newOther
+        },
+        pricing: {
+            suggestedPrice: suggestedPrice,
+        },
+        occupancy: s.occupancy,
+        unitCost: unitCost,
+        sensitivity: {
+            inflationImpact: impactInflation,
+            raiseImpact: impactRaise,
+            occupancyImpact: impactOccupancy
+        }
+    });
+
+    // 5. EXPENSE TREND ANALYSIS (Sabit vs Değişken Dağılımı)
+    // Sezonsallık Simülasyonu (Basit model: Yazın yüksek doluluk, kışın düşük)
+    const months = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+
+    // Fixed Costs are constant per month
+    const monthlyFixed = (newPersonnel + newFixed) / 12;
+
+    // Variable Costs depend on seasonality factor
+    // Yaz sezonu (Jun-Sep) katsayısı yüksek, Kış düşük
+    const seasonality = [0.6, 0.7, 0.8, 1.0, 1.2, 1.5, 1.8, 1.8, 1.4, 1.1, 0.8, 0.7]; // Toplam ortalama ~1.0 olmalı ama basit tutuyoruz
+
+    // Normalize seasonality so average is 1.0 (to match total variable cost)
+    const avgSeason = seasonality.reduce((a, b) => a + b, 0) / 12;
+    const normalizedSeasonality = seasonality.map(v => v / avgSeason);
+
+    const totalVariableYearly = newKitchen + newOther;
+    const avgVariableMonthly = totalVariableYearly / 12;
+
+    const monthlyFixedData = months.map(() => monthlyFixed);
+    const monthlyVariableData = months.map((m, i) => avgVariableMonthly * normalizedSeasonality[i]);
+
+    renderExpenseTrendChart(months, monthlyFixedData, monthlyVariableData);
+
+    // 6. Break-Even Analysis (Başa Baş Noktası)
+    const totalFixedCosts = newPersonnel + newFixed; // Sabit Giderler
+    const totalVariableCosts = newKitchen + newOther; // Değişken Giderler
+    const variableCostPerSoldRoom = totalVariableCosts / (totalRoomNights || 1);
+
+    // Contrubution Margin (Katkı Payı) = Satış Fiyatı - Değişken Gider
+    const contributionMargin = suggestedPrice - variableCostPerSoldRoom;
+
+    // Break-Even Point (Units) = Toplam Sabit Gider / Katkı Payı
+    const breakEvenRoomNights = totalFixedCosts / contributionMargin;
+    const breakEvenOccupancy = (breakEvenRoomNights / (totalRooms * 365)) * 100;
+
+    // RUN EXPERT SYSTEM (AI)
+    generateAIInsights(s, unitCost, suggestedPrice, totalProfit, breakEvenOccupancy);
+}
+
+// 🧠 KDS EXPERT SYSTEM LOGIC
+// 🧠 KDS EXPERT SYSTEM LOGIC
+function generateAIInsights(scenario, unitCost, price, profit, breakEvenOcc) {
+    const aiText = document.getElementById('ai-text');
+    let messages = [];
+
+    // 1. Profitability & Break-Even
+    const bepVal = breakEvenOcc.toFixed(1);
+    const occVal = scenario.occupancy;
+
+    if (profit < 0) {
+        messages.push(`🛑 <strong>ZARAR EDIYORSUNUZ:</strong> Gelirler maliyeti karşılamıyor. Başa baş noktası için doluluğun en az <strong>%${bepVal}</strong> olması gerek.`);
+    } else if (occVal < breakEvenOcc + 5) {
+        messages.push(`⚠️ <strong>KRİTİK EŞİK:</strong> Kar ediyorsunuz ancak başa baş noktasına (%${bepVal}) çok yakınsınız. Küçük bir krizde zarar edebilirsiniz.`);
+    } else {
+        messages.push(`✅ <strong>SAĞLAM MALİ YAPI:</strong> %${occVal} doluluk ile güvenli bölgedesiniz. (Başa Baş Noktası: %${bepVal})`);
+    }
+
+    // 2. Pricing & Yield Strategy
+    if (scenario.margin > 35 && occVal > 85) {
+        messages.push(`💎 <strong>PREMIUM FIRSATI:</strong> Yüksek talep ve yüksek marj var. Fiyatı %5-10 daha artırıp marka değerini yükseltebilirsiniz.`);
+    } else if (occVal < 50 && price > unitCost * 1.5) {
+        messages.push(`📉 <strong>FİYAT İNDİRİMİ ÖNERİSİ:</strong> Doluluk düşük (%${occVal}). Fiyatı düşürerek sürümden kazanmayı deneyin.`);
+    }
+
+    // 3. Operational Efficiency
+    if (scenario.inflation > 50) {
+        messages.push(`🔥 <strong>ENFLASYON RİSKİ:</strong> %${scenario.inflation} enflasyonist ortamda stok maliyetlerini yönetmek için toplu alım yapın.`);
+    }
+
+    aiText.innerHTML = messages.join('<br><br>');
+}
+
+
+function formatCurrency(val) {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
+}
+
+// 💾 SAVE SCENARIO FUNCTION
+async function saveCurrentScenario() {
+    const s = scenarios[currentScenarioId];
+
+    // We need to recalculate or grab the Suggested Price. 
+    // Since it's calculated inside runSimulation, let's grab it from the DOM or recalculate.
+    // Better to recalculate to be safe.
+
+    // Recalculate Logic (Simplified copy from runSimulation)
+    const ref = referenceData;
+    const newPersonnel = ref.personnel * (1 + s.raise / 100);
+    const inflationMultiplier = (1 + s.inflation / 100);
+    const newKitchen = ref.kitchen * inflationMultiplier;
+    const newFixed = ref.fixed * inflationMultiplier;
+    const newOther = ref.other * inflationMultiplier;
+    const totalProjectedCost = newPersonnel + newKitchen + newFixed + newOther;
+    const totalRooms = 100;
+    const totalRoomNights = totalRooms * 365 * (s.occupancy / 100);
+    const unitCost = totalProjectedCost / totalRoomNights;
+    const suggestedPrice = unitCost * (1 + s.margin / 100);
+
+    const payload = {
+        scenario_name: `${s.name} Senaryo (Otomatik)`,
+        inflation_rate: s.inflation,
+        raise_rate: s.raise,
+        target_occupancy: s.occupancy,
+        suggested_price: parseFloat(suggestedPrice.toFixed(2))
+    };
+
+    try {
+        const response = await fetch('/api/simulation/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+            alert('✅ Senaryo başarıyla veritabanına kaydedildi!');
+            // Auto reload the sidebar list (Global function from app.js)
+            if (typeof loadSavedScenarios === 'function') {
+                loadSavedScenarios();
+            }
+        } else {
+            alert('❌ Kayıt sırasında hata oluştu.');
+        }
+    } catch (error) {
+        console.error('Save error:', error);
+        alert('❌ Sunucuya bağlanılamadı.');
+    }
+}
+
+
+async function fetchCurrencyRates() {
+    try {
+        const res = await fetch('/api/currency');
+        const rates = await res.json();
+
+        if (rates.USD) {
+            currentRates = rates;
+            console.log('Güncel Kurlar:', currentRates);
+        }
+    } catch (err) {
+        console.error('Kur çekilemedi:', err);
+    }
+}
+
+
+// --- WIZARD LOGIC (SMART DECISION SUPPORT) ---
+
+
+
+
+
+function wizardCalculate() {
+    // 1. Get Inputs
+    const targetType = document.getElementById('wizard-target-type').value;
+    const targetVal = parseFloat(document.getElementById('wizard-target-value').value);
+    const targetOcc = parseInt(document.getElementById('wizard-occupancy').value);
+
+    // Validate Input
+    if (!document.getElementById('wizard-target-value').value || targetVal <= 0) {
+        alert('Lütfen geçerli bir hedef değer girin.');
+        return;
+    }
+
+    // 2. Get Simulation State (Use Scenario B as baseline if currently on W)
+    const baseScenarioId = (currentScenarioId === 'W') ? 'B' : currentScenarioId;
+    const s = scenarios[baseScenarioId];
+
+    // Recalculate cost foundation
+    const ref = referenceData;
+    const newPersonnel = ref.personnel * (1 + s.raise / 100);
+    const inflationMultiplier = (1 + s.inflation / 100);
+    // Use the wizard's target occupancy for cost scaling
+    const occupancyMultiplier = (targetOcc / (ref.occupancy || 70));
+
+    const newKitchen = ref.kitchen * inflationMultiplier * occupancyMultiplier;
+    const newFixed = ref.fixed * inflationMultiplier;
+    const newOther = ref.other * inflationMultiplier;
+
+    const totalProjectedCost = newPersonnel + newKitchen + newFixed + newOther;
+    const totalRooms = 100;
+    const totalRoomNights = totalRooms * 365 * (targetOcc / 100);
+    const unitCost = totalProjectedCost / totalRoomNights;
+
+    // 3. Goal Seek
+    let requiredProfit = 0;
+
+    if (targetType === 'profit') {
+        requiredProfit = targetVal;
+    } else {
+        requiredProfit = totalProjectedCost * (targetVal / 100);
+    }
+
+    const requiredRevenue = totalProjectedCost + requiredProfit;
+    const requiredPrice = requiredRevenue / totalRoomNights;
+
+    // 4. Display Result (Embedded)
+    document.getElementById('wizard-result-box').style.display = 'block';
+    document.getElementById('wizard-calc-price').innerText = formatCurrency(requiredPrice);
+
+    document.getElementById('wizard-calc-desc').innerHTML = `
+        <strong>${formatCurrency(requiredProfit)}</strong> kar hedefi ve 
+        <strong>%${targetOcc}</strong> doluluk için gereken fiyat.
+        <br>
+        <button onclick="applyWizardPrice()" style="margin-top:8px; padding:6px 12px; font-size:12px; background:#166534; color:white; border:none; border-radius:4px; cursor:pointer;">
+            ✅ Senaryo B'ye Uygula
+        </button>
+    `;
+
+    // Store for implementation
+    window.calculatedWizardMargin = ((requiredPrice / unitCost) - 1) * 100;
+    window.calculatedWizardOcc = targetOcc;
+}
+
+function applyWizardPrice() {
+    if (window.calculatedWizardMargin) {
+        // Switch to B so we can see the changes
+        switchScenario('B');
+
+        // Update Slider
+        const marginInput = document.getElementById('sim-margin');
+        const occInput = document.getElementById('sim-occupancy');
+
+        marginInput.value = window.calculatedWizardMargin;
+        occInput.value = window.calculatedWizardOcc;
+
+        // Update Labels
+        document.getElementById('val-margin').innerText = Math.round(window.calculatedWizardMargin) + '%';
+        document.getElementById('val-occupancy').innerText = window.calculatedWizardOcc + '%';
+
+        // Trigger Events
+        marginInput.dispatchEvent(new Event('input'));
+        occInput.dispatchEvent(new Event('input'));
+
+        // Recalculate
+        updateSimulation();
+
+        // alert('✅ Yeni fiyat politikası Senaryo B\'ye uygulandı!');
+    }
+}

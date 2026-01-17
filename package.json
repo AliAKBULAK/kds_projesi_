@@ -1,0 +1,23 @@
+{
+  "name": "hotel-kds-enterprise",
+  "version": "1.0.0",
+  "description": "Hotel Strategic Decision Support System",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "setup-db": "node database/setup_db.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.3",
+    "mysql2": "^3.9.3",
+    "xml2js": "^0.6.2"
+  }
+}
