@@ -12,3 +12,6 @@ yarn-error.log*
 _legacy_backup/
 controllers_backup/
 kds_yedek/
+*.zip
+*.rar
+*.7z
